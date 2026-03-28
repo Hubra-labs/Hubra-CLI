@@ -1,0 +1,27 @@
+{
+  "name": "hubra-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Node.js CLI for the Hubra gasless HTTP API",
+  "bin": {
+    "hubra": "./bin/hubra.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node ./bin/hubra.mjs",
+    "check": "node ./bin/hubra.mjs help"
+  },
+  "keywords": [
+    "hubra",
+    "cli",
+    "solana"
+  ],
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18"
+  }
+}
