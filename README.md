@@ -1,11 +1,11 @@
 # Hubra CLI
 
-Node.js CLI for the Hubra gasless HTTP API.
+Hubra CLI provides user-facing commands for Hubra transaction flows such as send, convert, stake, earn, DCA, perp, and unstake.
 
 ## Requirements
 
 - Node.js 18+
-- Hubra backend with the `/gasless/*` HTTP routes enabled
+- Hubra backend with the `/cli/*` HTTP routes enabled
 - `HUBRA_CLI_API_TOKEN`
 
 ## Installation
@@ -38,21 +38,28 @@ export HUBRA_CLI_API_TOKEN="<token>"
 
 ```bash
 hubra help
+hubra send --help
+hubra convert --help
+hubra stake --help
+hubra earn deposit --help
+hubra earn withdraw --help
+hubra perp --help
+hubra limit-order --help
+hubra dca --help
+hubra unstake --help
 hubra config show
 hubra config path
-hubra manifest
-hubra routes
-hubra call gasless_manifest
-hubra call gasless_convert_quote --json '{"fromToken": {...}, "toToken": {...}, "amount": 1, "slippageMode": "auto"}'
-hubra call gasless_send_build --file ./payload.json
-hubra request /gasless/manifest
-hubra request /gasless/send/build --method POST --file ./payload.json
+hubra send 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ RAoEnBNgWR3H4L76UFtXNoJShLQ3yFSUcGPCDEzqmMb HUBsveNpjo5pWqNkH57QzxjQASdTVXcSK7bVKTSZtcSX 1
+hubra convert 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ SOL raSOL 1
+hubra stake 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ 1
+hubra earn deposit 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ opportunity_123 10
+hubra limit-order create 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ SOL raSOL 1 150
+hubra dca create 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ SOL raSOL 10 5 86400
 ```
 
 ## Usage Notes
 
-- `hubra manifest` fetches the backend manifest.
-- `hubra routes` prints a compact route list derived from the manifest.
+- `hubra <command> --help` prints command-specific usage and examples.
 - `hubra config set token ...` persists CLI config under `~/.config/hubra/config.json`.
-- `hubra call <routeId>` resolves the route via the manifest first, then submits the request.
-- `hubra request <path>` sends a raw request by path.
+- High-level commands such as `send`, `convert`, `stake`, and `earn` call the backend `/cli/*` routes directly.
+- The backend resolves internal details such as quote/build steps and token metadata, so the normal CLI workflow does not require JSON payload files.

@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-
 import { readConfig } from "./config.mjs";
 
 function normalizeBaseUrl(baseUrl) {
@@ -36,32 +34,6 @@ export async function getApiBaseUrl() {
   }
 
   return normalizeBaseUrl(apiUrl);
-}
-
-export async function parsePayloadSource({ json, file }) {
-  if (json && file) {
-    throw new Error("Use either --json or --file, not both");
-  }
-
-  if (!json && !file) {
-    return null;
-  }
-
-  if (json) {
-    try {
-      return JSON.parse(json);
-    } catch (error) {
-      throw new Error(`Invalid JSON passed to --json: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  const fileContents = await readFile(file, "utf8");
-
-  try {
-    return JSON.parse(fileContents);
-  } catch (error) {
-    throw new Error(`Invalid JSON in file ${file}: ${error instanceof Error ? error.message : String(error)}`);
-  }
 }
 
 export async function apiRequest(path, { method = "GET", body = null } = {}) {
@@ -103,25 +75,11 @@ export async function apiRequest(path, { method = "GET", body = null } = {}) {
 }
 
 export async function fetchManifest() {
-  const response = await apiRequest("/gasless/manifest");
+  const response = await apiRequest("/cli/manifest");
 
   if (!response?.ok || !response.result) {
     throw new Error("Manifest response is missing result payload");
   }
 
   return response.result;
-}
-
-export async function resolveRoute(routeId) {
-  const manifest = await fetchManifest();
-  const route = manifest.routes?.find((item) => item.id === routeId);
-
-  if (!route) {
-    throw new Error(`Unknown route id: ${routeId}`);
-  }
-
-  return {
-    manifest,
-    route,
-  };
 }
