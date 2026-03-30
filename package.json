@@ -1,6 +1,6 @@
 {
   "name": "@hubra-labs/hubra-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "Node.js CLI for the Hubra gasless HTTP API",
   "bin": {
@@ -23,5 +23,8 @@
   "license": "UNLICENSED",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@hubra-labs/hubra-cli": "^0.1.2"
   }
 }

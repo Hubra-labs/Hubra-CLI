@@ -38,6 +38,7 @@ export HUBRA_CLI_API_TOKEN="<token>"
 
 ```bash
 hubra help
+hubra version
 hubra send --help
 hubra convert --help
 hubra stake --help
@@ -49,12 +50,12 @@ hubra dca --help
 hubra unstake --help
 hubra config show
 hubra config path
-hubra send 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ RAoEnBNgWR3H4L76UFtXNoJShLQ3yFSUcGPCDEzqmMb HUBsveNpjo5pWqNkH57QzxjQASdTVXcSK7bVKTSZtcSX 1
-hubra convert 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ SOL raSOL 1
-hubra stake 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ 1
-hubra earn deposit 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ opportunity_123 10
-hubra limit-order create 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ SOL raSOL 1 150
-hubra dca create 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ SOL raSOL 10 5 86400
+hubra send <wallet> <recipient> <mint> <amount>
+hubra convert <wallet> <fromMintOrSymbol> <toMintOrSymbol> <amount>
+hubra stake <wallet> <amount>
+hubra earn deposit <wallet> <opportunityId> <amount>
+hubra limit-order create <wallet> <fromMintOrSymbol> <toMintOrSymbol> <amount> <targetPrice>
+hubra dca create <wallet> <fromMintOrSymbol> <toMintOrSymbol> <totalAmount> <numberOfOrders> <intervalSeconds>
 ```
 
 ## Usage Notes

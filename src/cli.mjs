@@ -1,32 +1,62 @@
+import { createRequire } from "node:module";
+
 import { apiRequest, fetchManifest } from "./api-client.mjs";
 import { getConfigPath, readConfig, updateConfig } from "./config.mjs";
 
+const require = createRequire(import.meta.url);
+const { version: CLI_VERSION } = require("../package.json");
+
+const HUBRA_INTRO = "Hubra - unified API for fully gasless swaps, staking, and perps on Solana.";
+const HUBRA_REPO_URL = "https://github.com/Hubra-labs/Hubra-CLI";
+const HUBRA_WORDMARK = {
+  H: ["##   ##", "##   ##", "##   ##", "#######", "##   ##", "##   ##", "##   ##"],
+  U: ["##   ##", "##   ##", "##   ##", "##   ##", "##   ##", "##   ##", " ##### "],
+  B: ["###### ", "##   ##", "##   ##", "###### ", "##   ##", "##   ##", "###### "],
+  R: ["###### ", "##   ##", "##   ##", "###### ", "## ##  ", "##  ## ", "##   ##"],
+  A: [" ##### ", "##   ##", "##   ##", "#######", "##   ##", "##   ##", "##   ##"],
+};
+const ANSI = {
+  reset: "\u001B[0m",
+  bold: "\u001B[1m",
+  underline: "\u001B[4m",
+  accent: "\u001B[38;5;75m",
+  shadow: "\u001B[38;5;32m",
+  link: "\u001B[38;5;75m",
+  warm: "\u001B[38;5;117m",
+  white: "\u001B[38;5;230m",
+};
+
 const COMMAND_SPECS = {
+  version: {
+    description: "Print the installed CLI version.",
+    usage: ["hubra version", "hubra --version"],
+    examples: ["hubra version", "hubra --version"],
+  },
   send: {
     description: "Build a token send transaction.",
     usage: ["hubra send <wallet> <recipient> <mint> <amount>", "hubra send --help"],
     examples: [
-      "hubra send 7EUXTWW8ppz8oHwPSXzW1StxQxLQrbtFs9bmMaZ9eEFJ RAoEnBNgWR3H4L76UFtXNoJShLQ3yFSUcGPCDEzqmMb HUBsveNpjo5pWqNkH57QzxjQASdTVXcSK7bVKTSZtcSX 1",
+      "hubra send <wallet> <recipient> <mint> <amount>",
     ],
   },
   convert: {
     description: "Resolve tokens, quote, and build a conversion transaction.",
     usage: ["hubra convert <wallet> <fromMintOrSymbol> <toMintOrSymbol> <amount>", "hubra convert --help"],
     examples: [
-      "hubra convert 7EUX... So11111111111111111111111111111111111111112 HUBsveNpjo5pWqNkH57QzxjQASdTVXcSK7bVKTSZtcSX 1",
-      "hubra convert 7EUX... SOL raSOL 1",
+      "hubra convert <wallet> <fromMintOrSymbol> <toMintOrSymbol> <amount>",
+      "hubra convert <wallet> SOL raSOL <amount>",
     ],
     notes: ["Use --slippage-mode auto to override the default slippage mode."],
   },
   burn: {
     description: "Build close-account transactions for token accounts.",
     usage: ["hubra burn <wallet> <mint1> [mint2 ...]", "hubra burn --help"],
-    examples: ["hubra burn 7EUX... EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"],
+    examples: ["hubra burn <wallet> <mint1> [mint2 ...]"],
   },
   stake: {
     description: "Build a staking transaction.",
     usage: ["hubra stake <wallet> <amount>", "hubra stake --help"],
-    examples: ["hubra stake 7EUX... 1"],
+    examples: ["hubra stake <wallet> <amount>"],
   },
   earn: {
     description: "Build earn deposit and withdrawal transactions.",
@@ -35,13 +65,13 @@ const COMMAND_SPECS = {
       deposit: {
         description: "Build an earn deposit transaction.",
         usage: ["hubra earn deposit <wallet> <opportunityId> <amount>", "hubra earn deposit --help"],
-        examples: ["hubra earn deposit 7EUX... opportunity_123 10"],
+        examples: ["hubra earn deposit <wallet> <opportunityId> <amount>"],
         notes: ["Use --leverage <number> for multiply-style flows."],
       },
       withdraw: {
         description: "Build an earn withdrawal transaction.",
         usage: ["hubra earn withdraw <wallet> <positionTokenOrMint> <amount>", "hubra earn withdraw --help"],
-        examples: ["hubra earn withdraw 7EUX... raSOL 1.5"],
+        examples: ["hubra earn withdraw <wallet> <positionTokenOrMint> <amount>"],
       },
     },
   },
@@ -51,15 +81,19 @@ const COMMAND_SPECS = {
     subcommands: {
       open: {
         description: "Build an open-position transaction.",
-        usage: ["hubra perp open <wallet> <market> <side> <collateralUsd> <leverage>", "hubra perp open --help"],
-        examples: ["hubra perp open 7EUX... SOL long 100 5"],
-        notes: ["Use --slippage-bps <number> to override the default slippage."],
+        usage: ["hubra perp open <wallet> <side> <collateralUsd> <leverage>", "hubra perp open --help"],
+        examples: ["hubra perp open <wallet> <side> <collateralUsd> <leverage>"],
+        notes: ["Hubra resolves the perp market internally.", "Use --slippage-bps <number> to override the default slippage."],
       },
       close: {
         description: "Build a close-position transaction.",
-        usage: ["hubra perp close <wallet> <market> <side>", "hubra perp close --help"],
-        examples: ["hubra perp close 7EUX... SOL short"],
-        notes: ["Use --slippage-bps <number> to override the default slippage."],
+        usage: ["hubra perp close <wallet> [side]", "hubra perp close --help"],
+        examples: ["hubra perp close <wallet>", "hubra perp close <wallet> <side>"],
+        notes: [
+          "Hubra resolves the perp market internally.",
+          "If the wallet has multiple open positions, pass an optional side to narrow the close target.",
+          "Use --slippage-bps <number> to override the default slippage.",
+        ],
       },
     },
   },
@@ -70,12 +104,12 @@ const COMMAND_SPECS = {
       create: {
         description: "Build a limit-order creation transaction.",
         usage: ["hubra limit-order create <wallet> <fromMintOrSymbol> <toMintOrSymbol> <amount> <targetPrice>", "hubra limit-order create --help"],
-        examples: ["hubra limit-order create 7EUX... SOL raSOL 1 150"],
+        examples: ["hubra limit-order create <wallet> <fromMintOrSymbol> <toMintOrSymbol> <amount> <targetPrice>"],
       },
       cancel: {
         description: "Build a limit-order cancellation transaction.",
         usage: ["hubra limit-order cancel <wallet> <orderKey>", "hubra limit-order cancel --help"],
-        examples: ["hubra limit-order cancel 7EUX... 7y4...orderKey"],
+        examples: ["hubra limit-order cancel <wallet> <orderKey>"],
       },
     },
   },
@@ -86,12 +120,12 @@ const COMMAND_SPECS = {
       create: {
         description: "Build a DCA creation transaction.",
         usage: ["hubra dca create <wallet> <fromMintOrSymbol> <toMintOrSymbol> <totalAmount> <numberOfOrders> <intervalSeconds>", "hubra dca create --help"],
-        examples: ["hubra dca create 7EUX... SOL raSOL 10 5 86400"],
+        examples: ["hubra dca create <wallet> <fromMintOrSymbol> <toMintOrSymbol> <totalAmount> <numberOfOrders> <intervalSeconds>"],
       },
       cancel: {
         description: "Build a DCA cancellation transaction.",
         usage: ["hubra dca cancel <wallet> <orderKey>", "hubra dca cancel --help"],
-        examples: ["hubra dca cancel 7EUX... 7y4...orderKey"],
+        examples: ["hubra dca cancel <wallet> <orderKey>"],
       },
     },
   },
@@ -99,8 +133,8 @@ const COMMAND_SPECS = {
     description: "Build an unstake transaction for LSTs or native stake accounts.",
     usage: ["hubra unstake <wallet> <amount> [--token <mintOrSymbol> | --stake-account <address> --total-balance <amount>]", "hubra unstake --help"],
     examples: [
-      "hubra unstake 7EUX... 1 --token raSOL",
-      "hubra unstake 7EUX... 1 --stake-account 8F5...stake --total-balance 10",
+      "hubra unstake <wallet> <amount> --token <mintOrSymbol>",
+      "hubra unstake <wallet> <amount> --stake-account <address> --total-balance <amount>",
     ],
     notes: ["Use --mode slow or --mode instant for native stake accounts."],
   },
@@ -119,6 +153,177 @@ const COMMAND_SPECS = {
 
 function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
+}
+
+function printVersion() {
+  console.log(CLI_VERSION);
+}
+
+function supportsAnsi() {
+  return Boolean(process.stdout.isTTY) && process.env.TERM !== "dumb" && process.env.HUBRA_NO_COLOR !== "1";
+}
+
+function paint(text, ...codes) {
+  if (!supportsAnsi()) {
+    return text;
+  }
+
+  return `${codes.join("")}${text}${ANSI.reset}`;
+}
+
+function stripAnsi(text) {
+  return text.replace(/\u001B\[[0-9;]*m/g, "");
+}
+
+function visibleLength(text) {
+  return stripAnsi(text).length;
+}
+
+function padLine(text, width) {
+  return `${text}${" ".repeat(Math.max(width - visibleLength(text), 0))}`;
+}
+
+function wrapText(text, width) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= width) {
+      current = next;
+      continue;
+    }
+
+    if (current) {
+      lines.push(current);
+    }
+    current = word;
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  return lines.length ? lines : [""];
+}
+
+function getBannerWidth() {
+  const columns = Number.isFinite(process.stdout.columns) ? process.stdout.columns : 80;
+  return columns < 56 ? columns : Math.min(columns, 108);
+}
+
+function alignBannerSides(left, right, width) {
+  if (!right) {
+    return padLine(left, width);
+  }
+
+  const spacing = width - visibleLength(left) - visibleLength(right);
+  if (spacing < 1) {
+    return left;
+  }
+
+  return `${left}${" ".repeat(spacing)}${right}`;
+}
+
+function alignRight(text, width) {
+  const padding = Math.max(width - visibleLength(text), 0);
+  return `${" ".repeat(padding)}${text}`;
+}
+
+function buildWordmarkRows(word) {
+  const letters = word.split("").map((letter) => HUBRA_WORDMARK[letter]);
+  const gap = "   ";
+
+  return Array.from({ length: letters[0].length }, (_, rowIndex) => letters.map((rows) => rows[rowIndex]).join(gap));
+}
+
+function addWordmarkShadow(rows) {
+  const height = rows.length + 1;
+  const width = Math.max(...rows.map((row) => row.length)) + 1;
+  const canvas = Array.from({ length: height }, () => Array.from({ length: width }, () => " "));
+
+  for (let y = 0; y < rows.length; y += 1) {
+    const row = rows[y];
+    for (let x = 0; x < row.length; x += 1) {
+      if (row[x] !== "#") {
+        continue;
+      }
+
+      if (canvas[y + 1]?.[x + 1] === " ") {
+        canvas[y + 1][x + 1] = "▓";
+      }
+    }
+  }
+
+  for (let y = 0; y < rows.length; y += 1) {
+    const row = rows[y];
+    for (let x = 0; x < row.length; x += 1) {
+      if (row[x] === "#") {
+        canvas[y][x] = "█";
+      }
+    }
+  }
+
+  return canvas.map((row) => row.join("").replace(/\s+$/u, ""));
+}
+
+function paintWordmarkRow(row) {
+  if (!supportsAnsi()) {
+    return row.replace(/▓/gu, "▒");
+  }
+
+  let output = "";
+
+  for (const char of row) {
+    if (char === "█") {
+      output += paint(char, ANSI.bold, ANSI.accent);
+      continue;
+    }
+
+    if (char === "▓") {
+      output += paint(char, ANSI.shadow);
+      continue;
+    }
+
+    output += char;
+  }
+
+  return output;
+}
+
+function formatSectionHeading(label) {
+  return supportsAnsi() ? paint(`${label}:`, ANSI.bold, ANSI.accent) : `${label}:`;
+}
+
+function formatCommandLabel(label, width) {
+  const padded = label.padEnd(width);
+  return supportsAnsi() ? paint(padded, ANSI.bold, ANSI.link) : padded;
+}
+
+function renderBanner() {
+  const width = getBannerWidth();
+  const wordmarkRows = addWordmarkShadow(buildWordmarkRows("HUBRA")).map(paintWordmarkRow);
+  const version = paint(`v${CLI_VERSION}`, ANSI.bold, ANSI.white);
+  const repoUrl = paint(HUBRA_REPO_URL, ANSI.underline, ANSI.link);
+  const introLines = wrapText(HUBRA_INTRO, width).map((line) => paint(line, ANSI.warm));
+  const lines = [...wordmarkRows];
+
+  if (width >= visibleLength(wordmarkRows[0]) + 2 + visibleLength(version)) {
+    lines[0] = alignBannerSides(lines[0], version, width);
+  } else {
+    lines.push(alignRight(version, width));
+  }
+
+  if (width >= visibleLength(wordmarkRows[2]) + 2 + visibleLength(repoUrl)) {
+    lines[2] = alignBannerSides(lines[2], repoUrl, width);
+  } else {
+    lines.push("", alignRight(repoUrl, width));
+  }
+
+  lines.push(...introLines);
+
+  return lines.join("\n");
 }
 
 function parseOptions(argv) {
@@ -162,28 +367,36 @@ function isHelpToken(value) {
 
 function printSpecHelp(commandName, spec, subcommandName) {
   const title = subcommandName ? `${commandName} ${subcommandName}` : commandName;
-  const sections = ["Hubra CLI", "", title, `  ${spec.description}`, "", "Usage:"];
+  const sections = [
+    renderBanner(),
+    "",
+    formatSectionHeading("Command"),
+    `  hubra ${title}`,
+    `  ${spec.description}`,
+    "",
+    formatSectionHeading("Usage"),
+  ];
 
   for (const line of spec.usage) {
     sections.push(`  ${line}`);
   }
 
   if (spec.notes?.length) {
-    sections.push("", "Notes:");
+    sections.push("", formatSectionHeading("Notes"));
     for (const note of spec.notes) {
       sections.push(`  ${note}`);
     }
   }
 
   if (spec.subcommands) {
-    sections.push("", "Subcommands:");
+    sections.push("", formatSectionHeading("Subcommands"));
     for (const [name, childSpec] of Object.entries(spec.subcommands)) {
-      sections.push(`  ${name.padEnd(14)} ${childSpec.description}`);
+      sections.push(`  ${formatCommandLabel(name, 14)} ${childSpec.description}`);
     }
   }
 
   if (spec.examples?.length) {
-    sections.push("", "Examples:");
+    sections.push("", formatSectionHeading("Examples"));
     for (const example of spec.examples) {
       sections.push(`  ${example}`);
     }
@@ -193,26 +406,31 @@ function printSpecHelp(commandName, spec, subcommandName) {
 }
 
 function printMainHelp() {
-  const lines = Object.entries(COMMAND_SPECS).map(([name, spec]) => `  ${name.padEnd(12)} ${spec.description}`);
+  const lines = Object.entries(COMMAND_SPECS).map(
+    ([name, spec]) => `  ${formatCommandLabel(name, 12)} ${spec.description}`
+  );
 
-  console.log(`Hubra CLI
+  console.log(`${renderBanner()}
 
-Usage:
+${formatSectionHeading("Usage")}
   hubra <command> [<subcommand>] ...
   hubra <command> --help
+  hubra version
+  hubra --version
   hubra config show
   hubra config path
   hubra config set api-url <value>
   hubra config set token <value>
 
-Commands:
+${formatSectionHeading("Commands")}
 ${lines.join("\n")}
 
-Examples:
-  hubra send 7EUX... RAoE... HUBsve... 1
-  hubra convert 7EUX... SOL raSOL 1
-  hubra stake 7EUX... 1
-  hubra earn deposit 7EUX... opportunity_123 10
+${formatSectionHeading("Examples")}
+  hubra version
+  hubra send <wallet> <recipient> <mint> <amount>
+  hubra convert <wallet> SOL raSOL <amount>
+  hubra stake <wallet> <amount>
+  hubra earn deposit <wallet> <opportunityId> <amount>
   hubra config set token "<token>"
 `);
 }
@@ -408,18 +626,16 @@ async function handlePerp(positionals, options) {
   }
 
   if (subcommand === "open") {
-    const wallet = requireArg(positionals, 2, "Usage: hubra perp open <wallet> <market> <side> <collateralUsd> <leverage>");
-    const market = requireArg(positionals, 3, "Usage: hubra perp open <wallet> <market> <side> <collateralUsd> <leverage>");
-    const side = requireArg(positionals, 4, "Usage: hubra perp open <wallet> <market> <side> <collateralUsd> <leverage>");
+    const wallet = requireArg(positionals, 2, "Usage: hubra perp open <wallet> <side> <collateralUsd> <leverage>");
+    const side = requireArg(positionals, 3, "Usage: hubra perp open <wallet> <side> <collateralUsd> <leverage>");
     const collateralUsd = parseNumber(
-      requireArg(positionals, 5, "Usage: hubra perp open <wallet> <market> <side> <collateralUsd> <leverage>"),
+      requireArg(positionals, 4, "Usage: hubra perp open <wallet> <side> <collateralUsd> <leverage>"),
       "collateralUsd"
     );
-    const leverage = parseNumber(requireArg(positionals, 6, "Usage: hubra perp open <wallet> <market> <side> <collateralUsd> <leverage>"), "leverage");
+    const leverage = parseNumber(requireArg(positionals, 5, "Usage: hubra perp open <wallet> <side> <collateralUsd> <leverage>"), "leverage");
 
     await runCommand("/cli/perp/open", {
       wallet,
-      market,
       side,
       collateralUsd,
       leverage,
@@ -429,13 +645,11 @@ async function handlePerp(positionals, options) {
   }
 
   if (subcommand === "close") {
-    const wallet = requireArg(positionals, 2, "Usage: hubra perp close <wallet> <market> <side>");
-    const market = requireArg(positionals, 3, "Usage: hubra perp close <wallet> <market> <side>");
-    const side = requireArg(positionals, 4, "Usage: hubra perp close <wallet> <market> <side>");
+    const wallet = requireArg(positionals, 2, "Usage: hubra perp close <wallet> [side]");
+    const side = positionals[3];
 
     await runCommand("/cli/perp/close", {
       wallet,
-      market,
       side,
       slippageBps: parseOptionalNumber(options.flags["slippage-bps"], "slippageBps"),
     });
@@ -583,6 +797,11 @@ async function handleTx(positionals) {
 }
 
 async function handleCommand(command, positionals, options) {
+  if (command === "version") {
+    printVersion();
+    return;
+  }
+
   if (command === "send") {
     await handleSend(positionals);
     return;
@@ -639,6 +858,11 @@ async function handleCommand(command, positionals, options) {
 export async function main(argv) {
   const { positionals, options } = parseOptions(argv.slice(2));
   const command = positionals[0] ?? "help";
+
+  if (command === "--version" || command === "-v" || options.flags.version === true) {
+    printVersion();
+    return;
+  }
 
   if (command === "help") {
     printMainHelp();
